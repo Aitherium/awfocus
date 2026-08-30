@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "awfocus"
+version = "0.1.0"
+description = "See, search and steer every Claude Code session from one command — no more hunting through terminal tabs."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+dependencies = []
+
+[project.scripts]
+awfocus = "awfocus.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/Aitherium/awfocus"
+Documentation = "https://github.com/Aitherium/awfocus#readme"
+Repository = "https://github.com/Aitherium/awfocus.git"
+Issues = "https://github.com/Aitherium/awfocus/issues"
+
+[tool.setuptools]
+packages = ["awfocus"]
