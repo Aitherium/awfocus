@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "1",
+  "name": "awfocus",
+  "description": "See, search and steer every Claude session from one command.",
+  "url": "https://aitherium.github.io/awfocus/",
+  "repository": "https://github.com/Aitherium/awfocus",
+  "kind": "tool",
+  "status": "public",
+  "adopt": "List your live sessions, search their transcripts, and focus or message the one you want.",
+  "pairs_with": [
+    "awrelay",
+    "awgit",
+    "awm",
+    "awgraph"
+  ],
+  "includes": [],
+  "metrics": {
+    "files": {
+      "value": 19,
+      "as_of": "2026-09-02T16:28:20-07:00"
+    },
+    "tests": {
+      "value": 1,
+      "as_of": "2026-09-02T16:28:20-07:00"
+    }
+  }
+}
