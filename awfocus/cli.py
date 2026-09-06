@@ -257,20 +257,6 @@ def self_test() -> int:
 
 
 def main(argv=None) -> int:
-    # GENERATED doctor intercept (gen_aw_doctor.py) -- do not edit
-    _dv = locals().get("argv")
-    if (_dv if _dv is not None else __import__("sys").argv[1:])[:1] == ["doctor"]:
-        from ._doctor import report
-        return report()
-    # GENERATED repo-state intercept (gen_aw_doctor.py) -- do not edit
-    try:
-        from awgit import state as _aw_state
-    except Exception:
-        _aw_state = None
-    if _aw_state is not None:
-        _sv = locals().get("argv")
-        if _aw_state.cli_banner(_sv if _sv is not None else __import__("sys").argv[1:]):
-            return 0
     # The prompts and transcripts are UTF-8; the console may be cp1252. A
     # transcript character that cannot encode must never kill the listing.
     for stream in (sys.stdout, sys.stderr):
