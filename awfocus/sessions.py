@@ -149,3 +149,58 @@ def find_session(needle: str, include_dead: bool = True) -> "list[Session]":
     if include_dead:
         return matches
     return [s for s in matches if s.live]
+
+
+def _state_session_for_pid(pid: "int | str | None") -> str:
+    if not pid:
+        return ""
+    data = _read_json(state_dir() / ("%s.json" % pid))
+    return str((data or {}).get("sessionId") or "")
+
+
+def _ancestor_pids(limit: int = 6) -> "list[int]":
+    """Parent, grandparent, ... of this process — best effort. An MCP server
+    is spawned by the Claude Code process (possibly through a launcher shim),
+    so the owning session's pid state file is somewhere up this chain."""
+    pids: "list[int]" = []
+    try:
+        pids.append(os.getppid())
+    except (AttributeError, OSError):
+        return pids
+    try:
+        import psutil  # optional; the stdlib cannot walk further on Windows
+    except ImportError:
+        return pids
+    try:
+        proc = psutil.Process(pids[0])
+        for _ in range(limit):
+            proc = proc.parent()
+            if proc is None:
+                break
+            pids.append(proc.pid)
+    except Exception:  # noqa: BLE001 — a vanished ancestor ends the walk
+        return pids
+    return pids
+
+
+def own_session_ids() -> "set[str]":
+    """The Claude Code session(s) this process belongs to.
+
+    Three independent signals, any of which is enough: the
+    ``CLAUDE_CODE_SESSION_ID`` env var Claude Code exports to its children,
+    the state file of ``CLAUDE_PID``, and the state file of any ancestor
+    process. Used to refuse messaging yourself — a session that drops a note
+    into its own mailbox just talks to itself on its next prompt.
+    """
+    ids: "set[str]" = set()
+    env_id = os.getenv("CLAUDE_CODE_SESSION_ID", "").strip()
+    if env_id:
+        ids.add(env_id)
+    sid = _state_session_for_pid(os.getenv("CLAUDE_PID", "").strip())
+    if sid:
+        ids.add(sid)
+    for pid in _ancestor_pids():
+        sid = _state_session_for_pid(pid)
+        if sid:
+            ids.add(sid)
+    return ids

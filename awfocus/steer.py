@@ -55,3 +55,40 @@ def ask(session_id: str, text: str) -> "tuple[bool, str]":
     except OSError as exc:
         return False, "cannot write mailbox: %s" % exc
     return True, str(target)
+
+
+_LABEL_RE = re.compile(r"[^A-Za-z0-9 ._:@/-]")
+
+
+def send_peer(session_id: str, text: str, sender: str) -> "tuple[bool, str]":
+    """Queue ``text`` for ``session_id`` as a PEER message, not an owner one.
+
+    ``ask`` is the owner's own CLI verb and says so in the body. An agent
+    calling through the MCP server is not the owner, so this writes the
+    ``aither-steer v1 authority="peer"`` header the drain hook resolves with
+    least authority: the receiving session sees who sent it and that it
+    carries no owner authority. ``sender`` is sanitised to the label charset
+    so it cannot close the header or forge a second one.
+    """
+    if not session_id or not _SESSION_RE.match(session_id):
+        return False, "refusing a malformed session id: %r" % session_id
+    text = text.strip()
+    if not text:
+        return False, "nothing to send"
+    label = _LABEL_RE.sub("", sender or "")[:80] or "awfocus-mcp"
+    box = steer_root() / session_id
+    try:
+        box.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        return False, "cannot create mailbox: %s" % exc
+    target = box / ("%d-awfocus-peer.md" % int(time.time() * 1000))
+    body = (
+        '<!-- aither-steer v1 authority="peer" from="%s" kind="claude_code" '
+        'event="%s" -->\n\n' % (label, target.stem)
+        + text + "\n"
+    )
+    try:
+        target.write_text(body, encoding="utf-8")
+    except OSError as exc:
+        return False, "cannot write mailbox: %s" % exc
+    return True, str(target)

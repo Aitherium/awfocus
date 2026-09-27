@@ -7,4 +7,4 @@ per-pid state files at ~/.claude/sessions/*.json, the transcripts at
 ~/.aither/steer/<session-id>/ that the awask drain hook already consumes.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"

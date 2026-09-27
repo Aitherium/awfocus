@@ -135,6 +135,136 @@ def _snippet(text: str, needle: str) -> str:
     return prefix + snip + suffix
 
 
+def _scan_file(path: Path, needle: str) -> "tuple[int, str, str]":
+    """(match count, first snippet, newest matching timestamp) for one
+    transcript. An unreadable file is (0, "", "") — skipped, never fatal."""
+    count = 0
+    first_snippet = ""
+    last_ts = ""
+    try:
+        with path.open("r", encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                if needle not in line.lower():
+                    continue
+                text = _line_text(line)
+                if needle not in text.lower():
+                    continue
+                count += 1
+                if not first_snippet:
+                    first_snippet = _snippet(text, needle)
+                # The line's own timestamp is the best activity signal.
+                ts = _line_ts(line)
+                if ts:
+                    last_ts = ts
+                if count >= _MAX_MATCHES_PER_FILE:
+                    break
+    except OSError:
+        return 0, "", ""
+    return count, first_snippet, last_ts
+
+
+def _owner_of(path: Path, root: Path) -> "tuple[str, str]":
+    """(project dir, owning session id) for a transcript under ``root``.
+
+    ``<proj>/<sid>.jsonl`` is the session itself; anything deeper
+    (``<proj>/<sid>/subagents/agent-x.jsonl``) belongs to ``<sid>``.
+    """
+    try:
+        parts = path.relative_to(root).parts
+    except ValueError:
+        return path.parent.name, path.stem
+    if len(parts) <= 2:
+        return (parts[0] if len(parts) == 2 else ""), path.stem
+    return parts[0], parts[1]
+
+
+def search_recent(query: str, project: "str | None" = None,
+                  live_ids: "set[str] | None" = None,
+                  max_age_days: "float | None" = 2.0,
+                  time_budget_s: "float | None" = 20.0,
+                  only_ids: "set[str] | None" = None,
+                  ) -> "tuple[list[Hit], dict]":
+    """Bounded search for callers that cannot wait minutes (the MCP server).
+
+    A full scan of a busy box's transcripts is many GB and takes minutes; this
+    walks transcripts NEWEST FIRST, skips ones not modified within
+    ``max_age_days``, and stops at ``time_budget_s``. The returned ``info``
+    says exactly what was and was not scanned, so a partial answer is never
+    presented as a complete one.
+    """
+    import time as _time
+
+    needle = query.lower()
+    info = {"scanned": 0, "skipped_old": 0, "skipped_big": 0,
+            "not_scanned_budget": 0, "complete": True,
+            "max_age_days": max_age_days, "time_budget_s": time_budget_s}
+    if not needle:
+        return [], info
+    live_ids = live_ids or set()
+    root = projects_dir()
+    if not root.is_dir():
+        info["complete"] = False
+        info["error"] = "no transcripts dir at %s" % root
+        return [], info
+    cutoff = (_time.time() - max_age_days * 86400.0) if max_age_days else None
+    candidates = []
+    try:
+        for path in root.glob("*/**/*.jsonl"):
+            project_name, owner = _owner_of(path, root)
+            if project and project not in project_name:
+                continue
+            if only_ids is not None and owner not in only_ids:
+                continue
+            try:
+                st = path.stat()
+            except OSError:
+                continue
+            if cutoff is not None and st.st_mtime < cutoff:
+                info["skipped_old"] += 1
+                continue
+            if st.st_size > _MAX_FILE_BYTES:
+                info["skipped_big"] += 1
+                continue
+            candidates.append((st.st_mtime, path, project_name, owner))
+    except OSError as exc:
+        info["complete"] = False
+        info["error"] = "cannot list transcripts: %s" % exc
+        return [], info
+    candidates.sort(key=lambda c: c[0], reverse=True)
+    deadline = (_time.monotonic() + time_budget_s) if time_budget_s else None
+    by_owner: "dict[str, Hit]" = {}
+    for idx, (_mtime, path, project_name, owner) in enumerate(candidates):
+        if deadline is not None and _time.monotonic() > deadline:
+            info["not_scanned_budget"] = len(candidates) - idx
+            info["complete"] = False
+            break
+        info["scanned"] += 1
+        count, snippet, last_ts = _scan_file(path, needle)
+        if count == 0:
+            continue
+        # A subagent transcript is folded into the session that spawned it:
+        # an `agent-…` id can be neither focused nor messaged.
+        main = path if path.stem == owner else root / project_name / (owner + ".jsonl")
+        hit = by_owner.get(owner)
+        if hit is None:
+            hit = by_owner[owner] = Hit(
+                session_id=owner,
+                title=_title_for(main) if main.is_file() else "",
+                path=main if main.is_file() else path, project=project_name,
+                matches=0, live=owner in live_ids,
+            )
+        hit.matches += count
+        if last_ts > hit.last_activity:
+            hit.last_activity = last_ts
+        if snippet and (not hit.snippet or path.stem == owner):
+            hit.snippet = snippet
+    hits = list(by_owner.values())
+    if info["skipped_big"]:
+        info["complete"] = False
+    hits.sort(key=lambda h: (h.live, h.matches, h.last_activity), reverse=True)
+    return hits, info
+
+
 def search(query: str, project: "str | None" = None,
            live_ids: "set[str] | None" = None) -> "list[Hit]":
     needle = query.lower()
@@ -165,29 +295,7 @@ def search(query: str, project: "str | None" = None,
             skipped_big += 1
             continue
 
-        count = 0
-        first_snippet = ""
-        last_ts = ""
-        try:
-            with path.open("r", encoding="utf-8", errors="replace") as fh:
-                for line in fh:
-                    if needle not in line.lower():
-                        continue
-                    text = _line_text(line)
-                    if needle not in text.lower():
-                        continue
-                    count += 1
-                    if not first_snippet:
-                        first_snippet = _snippet(text, needle)
-                    # The line's own timestamp is the best activity signal.
-                    ts = _line_ts(line)
-                    if ts:
-                        last_ts = ts
-                    if count >= _MAX_MATCHES_PER_FILE:
-                        break
-        except OSError:
-            continue
-
+        count, first_snippet, last_ts = _scan_file(path, needle)
         if count == 0:
             continue
         hits.append(Hit(

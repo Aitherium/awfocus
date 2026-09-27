@@ -4,12 +4,18 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "awfocus"
-version = "0.1.0"
+version = "0.1.1"
 description = "See, search and steer every Claude Code session from one command — no more hunting through terminal tabs."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
 dependencies = []
+
+[project.optional-dependencies]
+# `awfocus mcp` — serve list/search/focus/message to any MCP coding agent over
+# stdio. Works on the 2.x `MCPServer` API and falls back to 1.x `FastMCP`
+# (see mcp_server.py), so the floor is the first 1.x with FastMCP.
+mcp = ["mcp>=1.2"]
 
 [project.scripts]
 awfocus = "awfocus.cli:main"

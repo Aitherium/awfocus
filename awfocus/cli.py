@@ -5,6 +5,7 @@
     awfocus open <id>       open that session in a terminal tab
     awfocus ask <id> <text>  deliver a message to a session's mailbox
     awfocus remote          sessions seen on the relay (other machines)
+    awfocus mcp             serve list/search/focus/message over MCP stdio
     awfocus --self-test     prove the contract, offline
 
 Output is deliberately narrow lines — this command replaces squinting at
@@ -14,8 +15,8 @@ twelve terminal tabs, not with twelve tables.
 from __future__ import annotations
 
 import argparse
-import os
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -26,7 +27,7 @@ from .search import search
 from .sessions import find_session, list_sessions
 from .steer import ask as steer_ask
 
-_COMMANDS = {"list", "search", "open", "ask", "remote"}
+_COMMANDS = {"list", "search", "open", "ask", "remote", "mcp"}
 
 
 def _fmt_last(text: str) -> str:
@@ -257,6 +258,12 @@ def self_test() -> int:
 
 
 def main(argv=None) -> int:
+    # `awfocus mcp` is intercepted before anything can write to stdout: the
+    # stdio transport owns it, and a banner line would corrupt the protocol.
+    _mv = list(sys.argv[1:] if argv is None else argv)
+    if _mv[:1] == ["mcp"]:
+        from .mcp_server import main as mcp_main
+        return mcp_main(_mv[1:])
     # GENERATED doctor intercept (gen_aw_doctor.py) -- do not edit
     _dv = locals().get("argv")
     if (_dv if _dv is not None else __import__("sys").argv[1:])[:1] == ["doctor"]:
