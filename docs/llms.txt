@@ -1,0 +1,36 @@
+# awfocus
+
+> See, search and steer every Claude session from one command.
+
+Every session is a tab; nothing answers "which session is doing what, where did I say X, how do I tell that session to do Y" without hunting.
+
+## Install
+
+```
+pip install awfocus
+```
+
+## In Claude Code
+
+- mcp: `awfocus mcp`
+
+## Use it in 30 seconds
+
+List your live sessions, search their transcripts, and focus or message the one you want.
+
+## Composes with
+
+- [awrelay](https://aitherium.github.io/awrelay/) — Portable agent messaging — findings, alerts, coordination.
+- [awgit](https://aitherium.github.io/awgit/) — Semantic version control on top of git — edit-ops and leases.
+- [awm](https://aitherium.github.io/awm/) — A portable, scoped agent memory.
+- [awgraph](https://aitherium.github.io/awgraph/) — A semantic code graph for agents — AST + tree-sitter, call graphs.
+
+## Where it lives
+
+- Repo: https://github.com/Aitherium/awfocus
+- Docs: https://aitherium.github.io/awfocus/
+- Manifest (keys + the one-line adoption story): https://aitherium.github.io/awfocus/aither-manifest.json
+
+This repository is mirrored from the AitherOS monorepo by `.github/workflows/sync-awfocus.yml`; hand edits made here are overwritten on the next sync — change the source instead.
+
+Everything Aitherium, in one file for agents: https://aitherium.com/llms.txt
