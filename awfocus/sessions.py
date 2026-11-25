@@ -106,16 +106,51 @@ def _pid_states() -> "dict[str, dict]":
     return out
 
 
+def _antigravity_sessions() -> "list[Session]":
+    """Live Google Antigravity sessions written by adk.harnesses.antigravity_hooks."""
+    raw = os.getenv("AITHER_ANTIGRAVITY_SESSIONS_DIR", "").strip()
+    base = Path(raw) if raw else Path.home() / ".aither" / "antigravity_sessions"
+    if not base.is_dir():
+        return []
+    out: "list[Session]" = []
+    try:
+        files = sorted(base.glob("*.json"))
+    except OSError:
+        return out
+    for path in files:
+        data = _read_json(path)
+        if not data:
+            continue
+        sid = str(data.get("sessionId") or data.get("id") or "")
+        if not sid:
+            continue
+        out.append(Session(
+            id=sid,
+            title=str(data.get("title") or sid[:8]),
+            cwd=str(data.get("cwd") or ""),
+            branch=str(data.get("branch") or ""),
+            last_prompt=str(data.get("lastPrompt") or ""),
+            when=str(data.get("updatedAt") or data.get("startedAt") or ""),
+            live=bool(data.get("live", True)),
+            status=str(data.get("status") or ""),
+            name=str(data.get("title") or ""),
+            file=str(data.get("transcriptPath") or ""),
+        ))
+    return out
+
+
 def list_sessions(live_only: bool = True) -> "list[Session]":
-    """Merged, recency-sorted view of the registry + pid states."""
+    """Merged, recency-sorted view of the registry + pid states + Antigravity sessions."""
     reg = _registry()
     states = _pid_states()
     raw = (reg or {}).get("sessions", []) if reg else []
     sessions = []
+    seen_ids: set[str] = set()
     for entry in raw:
         sid = str(entry.get("id", ""))
         if not sid:
             continue
+        seen_ids.add(sid)
         is_live = bool(entry.get("live"))
         state = states.get(sid, {})
         sessions.append(Session(
@@ -130,6 +165,10 @@ def list_sessions(live_only: bool = True) -> "list[Session]":
             name=str(state.get("name") or ""),
             file=str(entry.get("file") or ""),
         ))
+    for ag in _antigravity_sessions():
+        if ag.id not in seen_ids:
+            seen_ids.add(ag.id)
+            sessions.append(ag)
     sessions.sort(key=lambda s: s.when, reverse=True)
     if live_only:
         sessions = [s for s in sessions if s.live]
